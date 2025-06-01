@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	flagger "scrappyscrap/internal/Flagger"
 	scrapper "scrappyscrap/internal/Scrapper"
 )
@@ -9,14 +9,15 @@ import (
 func main() {
 	flags := flagger.FlaggerSetup().Do()
 	Scrapper := scrapper.NewScrapper(flags)
-	var neededElement string
-	fmt.Println("Enter element what you want to parse: ")
-	fmt.Scan(&neededElement)
 	switch len(flags) {
 	case 1:
-		Scrapper.ScrapPage(neededElement)
+		if err := Scrapper.ScrapPage(); err != nil {
+			log.Fatalf("%v", err)
+		}
 	default:
-		Scrapper.ScrapPages(neededElement)
+		if err := Scrapper.ScrapPages(); err != nil {
+			log.Fatalf("%v", err)
+		}
 
 	}
 }

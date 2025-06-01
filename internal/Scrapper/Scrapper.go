@@ -10,33 +10,50 @@ import (
 )
 
 type Scrapper struct {
-	links []string
+	pages   []*rod.Page
+	element string
 }
 
-// Declaring Scrapper instance
+// Creating an array of pages for scrapper for work
+func SetupPages(links []string) []*rod.Page {
+	var pages []*rod.Page
+	for i := range links {
+		p := rod.New().NoDefaultDevice().MustConnect().MustPage(links[i]).MustWaitLoad()
+		pages = append(pages, p)
+	}
+	return pages
+}
+
+// Constructor for Scrapper instance
 func NewScrapper(links []string) *Scrapper {
+	var neededElement string
+	fmt.Println("Enter element what you want to parse: ")
+	fmt.Scan(&neededElement)
 	return &Scrapper{
-		links: links,
+		pages:   SetupPages(links),
+		element: neededElement,
 	}
 }
 
 // Scrapping only one page, put an needed element into arguments
 // Making txt file with parsed text with element from argument
-func (scrap *Scrapper) ScrapPage(neededElement string) error {
+func (scrap *Scrapper) ScrapPage() error {
 	var data []string
-	page := rod.New().NoDefaultDevice().MustConnect().MustPage(scrap.links[0]).MustWaitLoad()
-	defer page.MustClose()
-	elements := page.MustElements(neededElement)
-	for _, elem := range elements {
-		data = append(data, elem.MustText())
-	}
-	formatteddata := strings.Join(data, "\n")
-	file, err := os.Create("Result.txt")
+	defer scrap.pages[0].MustClose()
+
+	file, err := os.Create("SingleResult.txt")
 	if err != nil {
 		return fmt.Errorf("fail at creating file")
 	}
 	defer file.Close()
-	file.Write([]byte(formatteddata))
+
+	elements := scrap.pages[0].MustElements(scrap.element)
+	for _, element := range elements {
+		data = append(data, element.MustText())
+	}
+
+	result := strings.Join(data, " ")
+	file.WriteString(result)
 	return nil
 }
 
@@ -44,7 +61,7 @@ func (scrap *Scrapper) ScrapPage(neededElement string) error {
 // That will be pretty stupid to return an error because more than 1 link given
 // By the way it also make txt file with parsed text from argument
 // It will separate result from parsing links with [Link %number of link%]
-func (scrap *Scrapper) ScrapPages(neededElement string) error {
+func (scrap *Scrapper) ScrapPages() error {
 	var data []string
 	var wg sync.WaitGroup
 
@@ -54,14 +71,13 @@ func (scrap *Scrapper) ScrapPages(neededElement string) error {
 	}
 	defer file.Close()
 
-	wg.Add(len(scrap.links))
-	for i := range scrap.links {
+	wg.Add(len(scrap.pages))
+	for i := range scrap.pages {
 		go func(i int) {
 			defer wg.Done()
 			var newdata []string
-			page := rod.New().NoDefaultDevice().MustConnect().MustPage(scrap.links[i]).MustWaitLoad()
-			defer page.Close()
-			elements := page.MustElements(neededElement)
+			defer scrap.pages[i].MustClose()
+			elements := scrap.pages[i].MustElements(scrap.element)
 			newdata = append(newdata, fmt.Sprintf("\n[Link %d]\n", i+1))
 			for _, elem := range elements {
 				newdata = append(newdata, elem.MustText())
@@ -72,6 +88,6 @@ func (scrap *Scrapper) ScrapPages(neededElement string) error {
 	}
 	wg.Wait()
 	formatteddata := strings.Join(data, "\n")
-	file.Write([]byte(formatteddata))
+	file.WriteString(formatteddata)
 	return nil
 }
